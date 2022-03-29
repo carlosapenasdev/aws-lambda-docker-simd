@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  python3.9
+
+  Sample SAM Template for docker-app
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  BucketReceiveSimdv1S3Policy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: bucket-receive-simdv1
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 's3:*'
+            Effect: 'Allow'
+            Resource: !Sub 'arn:aws:s3:::${BucketReceiveSimdv1}/*'
+            Principal: '*'
+  BucketReceiveSimdv1:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: bucket-receive-simdv1
+
+  BucketStoreSimdv1S3Policy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: bucket-store-simdv1
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 's3:*'
+            Effect: 'Allow'
+            Resource: !Sub 'arn:aws:s3:::${BucketStoreSimdv1}/*'
+            Principal: '*'
+  BucketStoreSimdv1:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: bucket-store-simdv1
+
+  LambdaInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt DockerSimdFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 's3.amazonaws.com'
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !GetAtt BucketReceiveSimdv1.Arn
+  DockerSimdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Architectures:
+        - x86_64
+      Timeout: 60
+      MemorySize: 512
+      Policies:
+        - S3ReadPolicy:
+            BucketName: bucket-receive-simdv1
+        - S3WritePolicy:
+            BucketName: bucket-store-simdv1
+      Events:
+        FileUpload:
+          Type: S3
+          Properties: 
+            Bucket: !Ref BucketReceiveSimdv1
+            Events: s3:ObjectCreated:*
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./src
+      DockerTag: python3.9-v1
+
+Outputs:
+  DockerSimdFunction:
+    Description: "Docker Lambda Function ARN"
+    Value: !GetAtt DockerSimdFunction.Arn
+  DockerSimdFunctionIamRole:
+    Description: "Implicit IAM Role created for Docker function"
+    Value: !GetAtt DockerSimdFunctionRole.Arn
